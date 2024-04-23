@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+source "$PLUGIN_AVAILABLE_PATH/gitversion/functions"
+set -eo pipefail
+[[ $DOKKU_TRACE ]] && set -x
+
+trigger-gitversion-pre-receive-app() {
+  declare desc="sets the app version from git"
+  declare trigger="pre-receive-app"
+
+  pre_receive_app "$@"
+  return $?
+}
+
+trigger-gitversion-pre-receive-app "$@"

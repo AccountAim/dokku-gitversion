@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+source "$PLUGIN_CORE_AVAILABLE_PATH/common/functions"
+source "$PLUGIN_AVAILABLE_PATH/config/functions"
+source "$PLUGIN_AVAILABLE_PATH/git/internal-functions"
+
+set -eo pipefail
+[[ $DOKKU_TRACE ]] && set -x
+
+pre_receive_app() {
+  declare desc="gitversion pre-receive-app plugin trigger"
+  declare APP="$1" REV="$2"
+
+  # Don't trigger git version set if there is no git repository.
+  if [[ ! -d "$DOKKU_ROOT/$APP/refs" ]]; then
+    true
+  else
+    local exit_code=0
+    fn-gitversion-set "$APP" "$REV" || exit_code="$?"
+    return "$exit_code"
+  fi
+}
+
+cmd-gitversion-help() {
+  declare desc="help command"
+  declare CMD="$1"
+  local plugin_name="gitversion"
+  local plugin_description="Shows the app version"
+
+  if [[ "$CMD" == "${plugin_name}:help" ]]; then
+    echo -e "Usage: dokku ${plugin_name}"
+    echo ''
+    echo "$plugin_description"
+    echo ''
+  else
+    cat <<help_desc
+    $plugin_name, $plugin_description
+help_desc
+  fi
+}
+
+cmd-gitversion-show() {
+  declare desc="retrieves the app version"
+  declare cmd="show"
+  declare APP="$1"
+
+  config_get "$APP" APP_VERSION || true
+}
+
+fn-gitversion-set() {
+  declare desc="sets the version config variable based on git information"
+  local APP=$1
+
+  branch=$(cmd-git-report-single "$APP" --git-deploy-branch)
+  updated_at=$(cmd-git-report-single "$APP" --git-last-updated-at)
+
+  local version
+  if [[ $branch == *.x ]]
+  then
+    version=${branch/.x/.$updated_at}
+  else
+    version="${branch}"."${updated_at}"
+  fi
+
+  dokku_log_info1 "Setting APP_VERSION: ${version}"
+  DOKKU_QUIET_OUTPUT=1 config_set --no-restart "$APP" "APP_VERSION=${version}"
+}
